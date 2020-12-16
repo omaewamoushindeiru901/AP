@@ -9,7 +9,7 @@ How to use:
 
 2. Install uWSGI
 
-3. Input in cygwin console: uwsgi --http :8080 --wsgi-file file_name.py
+3. Input in cygwin console: uwsgi --http :5000 --wsgi-file file_name.py
 
 4. Open your browser on your local host
 
