@@ -7,6 +7,10 @@ from project import *
 Base = declarative_base()
 
 
+def hash_password(password):
+    return bcrypt.generate_password_hash(password).decode('utf-8')
+
+
 class tag_to_event(Base):
     __tablename__ = 'tag_to_event'
     eventid = Column('eventid', ForeignKey('event.eventid'), primary_key=True)
@@ -21,7 +25,7 @@ class event_to_user(Base):
 
 class User(Base):
     __tablename__ = "user"
-    id = Column('id', Integer, unique=True)
+    id = Column('id', Integer, unique=True, autoincrement=True)
     username = Column('username', String, primary_key=True)
     firstName = Column('firstName', String)
     lastName = Column('lastName', String)
@@ -29,17 +33,11 @@ class User(Base):
     password = Column('password', String)
     phone = Column('phone', String)
 
-    def hash_password(self):
-        self.password = generate_password_hash(self.password).decode('utf8')
-
-    def check_password(self, password):
-        return check_password_hash(self.password, password)
-
 
 class Event(Base):
     __tablename__ = "event"
     creatorid = Column('creatorid', Integer)
-    eventid = Column('eventid', Integer, primary_key=True)
+    eventid = Column('eventid', Integer, primary_key=True, autoincrement=True)
     name = Column('name', String(50))
     content = Column('content', String)
     date = Column('date', String)
