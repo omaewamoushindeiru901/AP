@@ -294,7 +294,6 @@ user_resource_fields = {
 
 
 class UserApi(Resource):
-    @auth.login_required
     @marshal_with(user_resource_fields)
     def get(self):
         session = Session()
@@ -318,10 +317,7 @@ class UserApi(Resource):
     def put(self):
         session = Session()
         args = user_update_args.parse_args()
-        # result = session.query(User).filter_by(id=user_id).first()
         result = auth.current_user()
-        if not result:
-            abort(404, message="User doesn't exist, cannot update")
         if args['username']:
             result.username = args['username']
         if args['password']:
@@ -337,20 +333,16 @@ class UserApi(Resource):
         result = session.merge(result)
         session.add(result)
         session.commit()
-
         return result
 
     @auth.login_required
-    def delete(self, user_id):
+    def delete(self):
         session = Session()
-        # result = session.query(User).filter_by(id=user_id).first()
         result = auth.current_user()
-        if not result:
-            abort(500, message="User doesn't exist, cannot delete")
         result = session.merge(result)
         session.delete(result)
         session.commit()
-        return "User deleted", 204
+        return "User deleted", 200
 
 
 class UseridApi(Resource):
@@ -360,7 +352,7 @@ class UseridApi(Resource):
         session = Session()
         result = session.query(User).filter_by(id=user_id).first()
         if not result:
-            abort(404, message="Couldn`t find user with that id")
+            return 'Not found', 404
         return result
 
 
@@ -393,8 +385,7 @@ class EventApi(Resource):
         creatorid = user.id
         result = session.query(Event).filter_by(creatorid=creatorid).all()
         if not result:
-            abort(404, message="No event in database")
-
+            return "Not found", 404
         return result
 
     @auth.login_required
@@ -418,9 +409,9 @@ class EventidApi(Resource):
         result = session.query(Event).filter_by(eventid=event_id).first()
         usr = auth.current_user()
         if not result:
-            abort(404, message="Couldn`t find event with that id")
+            return "Not found", 404
         if result.creatorid != usr.id:
-            abort(401, message="no access")
+            return "No acsess", 401
         return result, 200
 
     @auth.login_required
@@ -430,11 +421,10 @@ class EventidApi(Resource):
         args = event_update_args.parse_args()
         result = session.query(Event).filter_by(eventid=event_id).first()
         user = auth.current_user()
-        if not result.creatorid == user.id:
-            abort(401, message="no access")
         if not result:
-            abort(404, message="Event doesn't exist, cannot update")
-
+            return "Not found", 404
+        if not result.creatorid == user.id:
+            return "No access", 401
         if args['name']:
             result.name = args['name']
         if args['content']:
@@ -454,19 +444,19 @@ class EventidApi(Resource):
         session = Session()
         result = session.query(Event).filter_by(eventid=event_id).first()
         user = auth.current_user()
-        if result.creatorid != user.id:
-            abort(401, message="no access")
         if not result:
-            abort(500, message="Event doesn't exist, cannot delete")
+            return "Not found", 404
+        if result.creatorid != user.id:
+            return "No access", 401
         result = session.merge(result)
 
         session.delete(result)
         session.commit()
-        return "Event deleted", 205
+        return "Event deleted", 200
 
 
 tag_put_args = reqparse.RequestParser()
-tag_put_args.add_argument("eventid", type=int, required=True)
+tag_put_args.add_argument("eventid", type=int)
 tag_put_args.add_argument("tag", type=str, required=True)
 
 tag_resource_fields = {
@@ -483,16 +473,20 @@ class TagApi(Resource):
         result = session.query(tag_to_event).filter_by(eventid=eventid).all()
 
         if not result:
-            abort(404, message="No tags in database")
+            return "Not found", 404
 
         return result
 
     @auth.login_required
     @marshal_with(tag_resource_fields)
-    def post(self):
+    def post(self,eventid):
         session = Session()
+        result = session.query(Event).filter_by(eventid=eventid).first()
+        user = auth.current_user()
+        if result.creatorid != user.id:
+            return "No access", 401
         args = tag_put_args.parse_args()
-        tag = tag_to_event(eventid=args['eventid'], tag=args['tag'])
+        tag = tag_to_event(eventid=eventid, tag=args['tag'])
         session.add(tag)
         session.commit()
         return tag, 200
@@ -503,10 +497,13 @@ class TagidApi(Resource):
     def delete(self, event_id, tag):
         session = Session()
         result = session.query(tag_to_event).filter_by(eventid=event_id, tag=tag).first()
+        user=auth.current_user()
+        result2 = session.query(Event).filter_by(eventid=event_id).first()
         if not result:
-            abort(500, message="Tag doesn't exist, can`t delete")
+            return "Not found", 404
+        if result2.creatorid != user.id:
+            return "No access", 401
         result = session.merge(result)
-
         session.delete(result)
         session.commit()
         return "Tag deleted", 200
@@ -530,11 +527,10 @@ class ConnectedApi(Resource):
         result = session.query(event_to_user).filter_by(eventid=eventid).all()
         event=session.query(Event).filter_by(eventid=eventid).first()
         user=auth.current_user()
-        if event.creatorid != user.id:
-            abort(401, message=" no access")
         if not result:
-            abort(404, message="No connected users in database")
-
+            return 'Not found', 404
+        if event.creatorid != user.id:
+            return "No access", 401
         return result
 
     @auth.login_required
@@ -545,7 +541,7 @@ class ConnectedApi(Resource):
         event = session.query(Event).filter_by(eventid=eventid).first()
         user = auth.current_user()
         if event.creatorid != user.id:
-            abort(401, message=" no access")
+            return "No access", 401
         connected = event_to_user(eventid=eventid, usersid=args['usersid'])
         session.add(connected)
         session.commit()
@@ -559,12 +555,11 @@ class ConnectedidApi(Resource):
         event = session.query(Event).filter_by(eventid=event_id).first()
         user = auth.current_user()
         if event.creatorid != user.id:
-            abort(401, message=" no access")
+            return "No access", 401
         result = session.query(event_to_user).filter_by(eventid=event_id, usersid=users_id).first()
         if not result:
-            abort(500, message="Connected user doesn't exist, can`t delete")
+            return "Not found", 404
         result = session.merge(result)
-
         session.delete(result)
         session.commit()
         return "Connected user deleted", 200
