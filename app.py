@@ -12,3 +12,6 @@ def hello_world():
 
 if __name__ == 'main':
     app.run()
+    
+#/api/v1/hello-world-10
+# python -m flask run --host=0.0.0.0
